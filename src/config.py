@@ -22,6 +22,16 @@ class Config:
     GITHUB_TOKEN: str = os.getenv("GITHUB_TOKEN", "")
     GITHUB_WEBHOOK_SECRET: str = os.getenv("GITHUB_WEBHOOK_SECRET", "")
 
+    # GitHub OAuth
+    GITHUB_CLIENT_ID: str = os.getenv("GITHUB_CLIENT_ID", "")
+    GITHUB_CLIENT_SECRET: str = os.getenv("GITHUB_CLIENT_SECRET", "")
+    GITHUB_REDIRECT_URI: str = os.getenv("GITHUB_REDIRECT_URI", "http://localhost:5000/api/auth/callback")
+
+    # JWT
+    JWT_SECRET_KEY: str = os.getenv("JWT_SECRET_KEY", "your-secret-key-change-in-production")
+    JWT_ALGORITHM: str = "HS256"
+    JWT_EXPIRATION_HOURS: int = int(os.getenv("JWT_EXPIRATION_HOURS", "24"))
+
     # CORS
     CORS_ORIGINS: List[str] = os.getenv(
         "CORS_ORIGINS",

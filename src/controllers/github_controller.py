@@ -4,6 +4,7 @@ from github import Github, GithubException
 import logging
 
 from ..config import get_config
+from ..utils.exceptions import GitHubAPIError, NotFoundError, BadRequestError
 
 logger = logging.getLogger(__name__)
 
@@ -11,10 +12,15 @@ logger = logging.getLogger(__name__)
 class GitHubController:
     """Controller for GitHub API operations."""
 
-    def __init__(self):
+    def __init__(self, token: Optional[str] = None):
         """Initialize GitHub client."""
         config = get_config()
-        self.client = Github(config.GITHUB_TOKEN)
+        github_token = token or config.GITHUB_TOKEN
+
+        if not github_token:
+            raise BadRequestError("GitHub token is required")
+
+        self.client = Github(github_token)
         self.user = self.client.get_user()
 
     def list_repositories(
@@ -52,7 +58,7 @@ class GitHubController:
 
         except GithubException as e:
             logger.error("GitHub API error: %s", e)
-            return {"error": str(e), "status": e.status}
+            raise GitHubAPIError(str(e), e.status)
 
     def get_repository(self, owner: str, repo: str) -> Dict[str, Any]:
         """Get repository details."""
@@ -79,7 +85,7 @@ class GitHubController:
 
         except GithubException as e:
             logger.error("GitHub API error: %s", e)
-            return {"error": str(e), "status": e.status}
+            raise GitHubAPIError(str(e), e.status)
 
     def create_repository(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """Create a new repository."""
@@ -101,7 +107,7 @@ class GitHubController:
 
         except GithubException as e:
             logger.error("GitHub API error: %s", e)
-            return {"error": str(e), "status": e.status}
+            raise GitHubAPIError(str(e), e.status)
 
     def list_pull_requests(
         self,
@@ -134,7 +140,7 @@ class GitHubController:
 
         except GithubException as e:
             logger.error("GitHub API error: %s", e)
-            return {"error": str(e), "status": e.status}
+            raise GitHubAPIError(str(e), e.status)
 
     def get_pull_request(self, owner: str, repo: str, number: int) -> Dict[str, Any]:
         """Get pull request details."""
@@ -164,7 +170,7 @@ class GitHubController:
 
         except GithubException as e:
             logger.error("GitHub API error: %s", e)
-            return {"error": str(e), "status": e.status}
+            raise GitHubAPIError(str(e), e.status)
 
     def create_pull_request(
         self,
@@ -191,7 +197,7 @@ class GitHubController:
 
         except GithubException as e:
             logger.error("GitHub API error: %s", e)
-            return {"error": str(e), "status": e.status}
+            raise GitHubAPIError(str(e), e.status)
 
     def list_issues(
         self,
@@ -224,7 +230,7 @@ class GitHubController:
 
         except GithubException as e:
             logger.error("GitHub API error: %s", e)
-            return {"error": str(e), "status": e.status}
+            raise GitHubAPIError(str(e), e.status)
 
     def get_issue(self, owner: str, repo: str, number: int) -> Dict[str, Any]:
         """Get issue details."""
@@ -248,7 +254,7 @@ class GitHubController:
 
         except GithubException as e:
             logger.error("GitHub API error: %s", e)
-            return {"error": str(e), "status": e.status}
+            raise GitHubAPIError(str(e), e.status)
 
     def create_issue(
         self,
@@ -274,7 +280,7 @@ class GitHubController:
 
         except GithubException as e:
             logger.error("GitHub API error: %s", e)
-            return {"error": str(e), "status": e.status}
+            raise GitHubAPIError(str(e), e.status)
 
     def list_commits(
         self,
@@ -302,4 +308,181 @@ class GitHubController:
 
         except GithubException as e:
             logger.error("GitHub API error: %s", e)
-            return {"error": str(e), "status": e.status}
+            raise GitHubAPIError(str(e), e.status)
+
+    def get_user(self, username: Optional[str] = None) -> Dict[str, Any]:
+        """Get user information."""
+        try:
+            if username:
+                user = self.client.get_user(username)
+            else:
+                user = self.user
+
+            return {
+                "id": user.id,
+                "login": user.login,
+                "name": user.name,
+                "email": user.email,
+                "bio": user.bio,
+                "avatar_url": user.avatar_url,
+                "html_url": user.html_url,
+                "location": user.location,
+                "company": user.company,
+                "blog": user.blog,
+                "twitter_username": user.twitter_username,
+                "public_repos": user.public_repos,
+                "public_gists": user.public_gists,
+                "followers": user.followers,
+                "following": user.following,
+                "created_at": user.created_at.isoformat(),
+                "updated_at": user.updated_at.isoformat(),
+            }
+
+        except GithubException as e:
+            logger.error("GitHub API error: %s", e)
+            raise GitHubAPIError(str(e), e.status)
+
+    def list_branches(
+        self,
+        owner: str,
+        repo: str,
+        per_page: int = 30
+    ) -> Dict[str, Any]:
+        """List branches for a repository."""
+        try:
+            repository = self.client.get_repo(f"{owner}/{repo}")
+            branches = repository.get_branches()
+
+            result = []
+            for branch in branches[:per_page]:
+                result.append({
+                    "name": branch.name,
+                    "protected": branch.protected,
+                    "commit": {
+                        "sha": branch.commit.sha,
+                        "url": branch.commit.html_url
+                    }
+                })
+
+            return {"branches": result, "count": len(result)}
+
+        except GithubException as e:
+            logger.error("GitHub API error: %s", e)
+            raise GitHubAPIError(str(e), e.status)
+
+    def get_branch(self, owner: str, repo: str, branch_name: str) -> Dict[str, Any]:
+        """Get branch details."""
+        try:
+            repository = self.client.get_repo(f"{owner}/{repo}")
+            branch = repository.get_branch(branch_name)
+
+            return {
+                "name": branch.name,
+                "protected": branch.protected,
+                "commit": {
+                    "sha": branch.commit.sha,
+                    "message": branch.commit.commit.message,
+                    "author": branch.commit.commit.author.name,
+                    "date": branch.commit.commit.author.date.isoformat(),
+                    "url": branch.commit.html_url
+                }
+            }
+
+        except GithubException as e:
+            logger.error("GitHub API error: %s", e)
+            raise GitHubAPIError(str(e), e.status)
+
+    def list_tags(
+        self,
+        owner: str,
+        repo: str,
+        per_page: int = 30
+    ) -> Dict[str, Any]:
+        """List tags for a repository."""
+        try:
+            repository = self.client.get_repo(f"{owner}/{repo}")
+            tags = repository.get_tags()
+
+            result = []
+            for tag in tags[:per_page]:
+                result.append({
+                    "name": tag.name,
+                    "commit": {
+                        "sha": tag.commit.sha,
+                        "url": tag.commit.html_url
+                    },
+                    "zipball_url": tag.zipball_url,
+                    "tarball_url": tag.tarball_url
+                })
+
+            return {"tags": result, "count": len(result)}
+
+        except GithubException as e:
+            logger.error("GitHub API error: %s", e)
+            raise GitHubAPIError(str(e), e.status)
+
+    def list_contributors(
+        self,
+        owner: str,
+        repo: str,
+        per_page: int = 30
+    ) -> Dict[str, Any]:
+        """List contributors for a repository."""
+        try:
+            repository = self.client.get_repo(f"{owner}/{repo}")
+            contributors = repository.get_contributors()
+
+            result = []
+            for contributor in contributors[:per_page]:
+                result.append({
+                    "login": contributor.login,
+                    "id": contributor.id,
+                    "avatar_url": contributor.avatar_url,
+                    "html_url": contributor.html_url,
+                    "contributions": contributor.contributions
+                })
+
+            return {"contributors": result, "count": len(result)}
+
+        except GithubException as e:
+            logger.error("GitHub API error: %s", e)
+            raise GitHubAPIError(str(e), e.status)
+
+    def search_repositories(
+        self,
+        query: str,
+        sort: str = "stars",
+        order: str = "desc",
+        per_page: int = 30
+    ) -> Dict[str, Any]:
+        """Search repositories."""
+        try:
+            repos = self.client.search_repositories(
+                query=query,
+                sort=sort,
+                order=order
+            )
+
+            result = []
+            for repo in repos[:per_page]:
+                result.append({
+                    "id": repo.id,
+                    "name": repo.name,
+                    "full_name": repo.full_name,
+                    "description": repo.description,
+                    "html_url": repo.html_url,
+                    "language": repo.language,
+                    "stars": repo.stargazers_count,
+                    "forks": repo.forks_count,
+                    "updated_at": repo.updated_at.isoformat()
+                })
+
+            return {
+                "repositories": result,
+                "count": len(result),
+                "total_count": repos.totalCount
+            }
+
+        except GithubException as e:
+            logger.error("GitHub API error: %s", e)
+            raise GitHubAPIError(str(e), e.status)
