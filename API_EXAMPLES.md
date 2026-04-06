@@ -420,6 +420,118 @@ curl "http://localhost:5000/api/search/repositories?q=flask+language:python&sort
 }
 ```
 
+## Milestones
+
+### List Milestones
+
+```bash
+# List open milestones (default)
+curl http://localhost:5000/api/repos/octocat/Hello-World/milestones \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+
+# List all milestones, sorted by completeness descending
+curl "http://localhost:5000/api/repos/octocat/Hello-World/milestones?state=all&sort=completeness&direction=desc&per_page=10" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+**Query Parameters:**
+| Parameter   | Values                          | Default   |
+|-------------|----------------------------------|-----------|
+| `state`     | `open` \| `closed` \| `all`     | `open`    |
+| `sort`      | `due_on` \| `completeness`      | `due_on`  |
+| `direction` | `asc` \| `desc`                 | `asc`     |
+| `per_page`  | integer                         | `30`      |
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "milestones": [
+      {
+        "id": 1002604,
+        "number": 1,
+        "title": "v1.0.0",
+        "description": "Initial stable release",
+        "state": "open",
+        "open_issues": 5,
+        "closed_issues": 12,
+        "due_on": "2026-06-30T00:00:00+00:00",
+        "created_at": "2026-01-01T00:00:00",
+        "updated_at": "2026-04-01T10:00:00",
+        "closed_at": null,
+        "html_url": "https://github.com/octocat/Hello-World/milestone/1",
+        "creator": "octocat"
+      }
+    ],
+    "count": 1
+  }
+}
+```
+
+### Get Milestone
+
+```bash
+curl http://localhost:5000/api/repos/octocat/Hello-World/milestones/1 \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+**Response:** same shape as a single item from the list above.
+
+### Create Milestone
+
+```bash
+curl -X POST http://localhost:5000/api/repos/octocat/Hello-World/milestones \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "v2.0.0",
+    "description": "Major release with new features",
+    "state": "open",
+    "due_on": "2026-12-31T00:00:00Z"
+  }'
+```
+
+**Required fields:** `title`  
+**Optional fields:** `state` (`open`/`closed`), `description`, `due_on` (ISO-8601)
+
+**Response:** `201 Created` with the serialized milestone object.
+
+### Update Milestone (PATCH)
+
+```bash
+curl -X PATCH http://localhost:5000/api/repos/octocat/Hello-World/milestones/1 \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "state": "closed",
+    "description": "Released — closing milestone"
+  }'
+```
+
+Only the fields provided in the body are changed; omitted fields retain their current values.
+
+**Response:** `200 OK` with the updated milestone object.
+
+### Delete Milestone
+
+```bash
+curl -X DELETE http://localhost:5000/api/repos/octocat/Hello-World/milestones/1 \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "deleted": true,
+    "milestone_number": 1
+  },
+  "message": "Milestone deleted successfully"
+}
+```
+
 ## Health Check
 
 ```bash

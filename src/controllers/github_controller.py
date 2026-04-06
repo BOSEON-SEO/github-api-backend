@@ -486,3 +486,136 @@ class GitHubController:
         except GithubException as e:
             logger.error("GitHub API error: %s", e)
             raise GitHubAPIError(str(e), e.status)
+
+    # -------------------------------------------------------------------------
+    # Milestone methods
+    # -------------------------------------------------------------------------
+
+    def _serialize_milestone(self, milestone: Any) -> Dict[str, Any]:
+        """Serialize a PyGithub Milestone object to a dict."""
+        return {
+            "id": milestone.id,
+            "number": milestone.number,
+            "title": milestone.title,
+            "description": milestone.description,
+            "state": milestone.state,
+            "open_issues": milestone.open_issues,
+            "closed_issues": milestone.closed_issues,
+            "due_on": milestone.due_on.isoformat() if milestone.due_on else None,
+            "created_at": milestone.created_at.isoformat(),
+            "updated_at": milestone.updated_at.isoformat(),
+            "closed_at": milestone.closed_at.isoformat() if milestone.closed_at else None,
+            "html_url": milestone.html_url,
+            "creator": milestone.creator.login if milestone.creator else None,
+        }
+
+    def list_milestones(
+        self,
+        owner: str,
+        repo: str,
+        state: str = "open",
+        sort: str = "due_on",
+        direction: str = "asc",
+        per_page: int = 30,
+    ) -> Dict[str, Any]:
+        """List milestones for a repository."""
+        try:
+            repository = self.client.get_repo(f"{owner}/{repo}")
+            milestones = repository.get_milestones(
+                state=state,
+                sort=sort,
+                direction=direction,
+            )
+
+            result = [self._serialize_milestone(m) for m in milestones[:per_page]]
+            return {"milestones": result, "count": len(result)}
+
+        except GithubException as e:
+            logger.error("GitHub API error listing milestones: %s", e)
+            raise GitHubAPIError(str(e), e.status)
+
+    def get_milestone(self, owner: str, repo: str, milestone_number: int) -> Dict[str, Any]:
+        """Get a single milestone by number."""
+        try:
+            repository = self.client.get_repo(f"{owner}/{repo}")
+            milestone = repository.get_milestone(milestone_number)
+            return self._serialize_milestone(milestone)
+
+        except GithubException as e:
+            logger.error("GitHub API error getting milestone %d: %s", milestone_number, e)
+            raise GitHubAPIError(str(e), e.status)
+
+    def create_milestone(self, owner: str, repo: str, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Create a milestone in a repository."""
+        if not data.get("title"):
+            raise BadRequestError("'title' is required to create a milestone")
+
+        try:
+            from datetime import datetime
+
+            repository = self.client.get_repo(f"{owner}/{repo}")
+
+            kwargs: Dict[str, Any] = {
+                "title": data["title"],
+            }
+            if "state" in data:
+                kwargs["state"] = data["state"]
+            if "description" in data:
+                kwargs["description"] = data["description"]
+            if "due_on" in data and data["due_on"]:
+                kwargs["due_on"] = datetime.fromisoformat(data["due_on"].replace("Z", "+00:00"))
+
+            milestone = repository.create_milestone(**kwargs)
+            return self._serialize_milestone(milestone)
+
+        except GithubException as e:
+            logger.error("GitHub API error creating milestone: %s", e)
+            raise GitHubAPIError(str(e), e.status)
+
+    def update_milestone(
+        self,
+        owner: str,
+        repo: str,
+        milestone_number: int,
+        data: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        """Update an existing milestone (PATCH semantics)."""
+        try:
+            from datetime import datetime
+
+            repository = self.client.get_repo(f"{owner}/{repo}")
+            milestone = repository.get_milestone(milestone_number)
+
+            # Build kwargs — only pass fields that were provided
+            kwargs: Dict[str, Any] = {
+                "title": data.get("title", milestone.title),
+                "state": data.get("state", milestone.state),
+                "description": data.get("description", milestone.description or ""),
+            }
+            if "due_on" in data:
+                kwargs["due_on"] = (
+                    datetime.fromisoformat(data["due_on"].replace("Z", "+00:00"))
+                    if data["due_on"]
+                    else milestone.due_on
+                )
+
+            milestone.edit(**kwargs)
+            # Re-fetch to return up-to-date data
+            updated = repository.get_milestone(milestone_number)
+            return self._serialize_milestone(updated)
+
+        except GithubException as e:
+            logger.error("GitHub API error updating milestone %d: %s", milestone_number, e)
+            raise GitHubAPIError(str(e), e.status)
+
+    def delete_milestone(self, owner: str, repo: str, milestone_number: int) -> Dict[str, Any]:
+        """Delete a milestone from a repository."""
+        try:
+            repository = self.client.get_repo(f"{owner}/{repo}")
+            milestone = repository.get_milestone(milestone_number)
+            milestone.delete()
+            return {"deleted": True, "milestone_number": milestone_number}
+
+        except GithubException as e:
+            logger.error("GitHub API error deleting milestone %d: %s", milestone_number, e)
+            raise GitHubAPIError(str(e), e.status)

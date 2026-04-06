@@ -226,3 +226,91 @@ def search_repositories() -> Dict[str, Any]:
         return success_response(result)
     except APIException as e:
         return error_response(e.message, e.status_code, e.payload)
+
+
+# ---------------------------------------------------------------------------
+# Milestone routes
+# ---------------------------------------------------------------------------
+
+@bp.route("/repos/<owner>/<repo>/milestones", methods=["GET"])
+@require_github_token
+def list_milestones(owner: str, repo: str) -> Dict[str, Any]:
+    """List milestones for a repository.
+
+    Query params:
+      - state     : "open" | "closed" | "all"  (default: "open")
+      - sort      : "due_on" | "completeness"   (default: "due_on")
+      - direction : "asc" | "desc"              (default: "asc")
+      - per_page  : int                          (default: 30)
+    """
+    state = request.args.get("state", "open")
+    sort = request.args.get("sort", "due_on")
+    direction = request.args.get("direction", "asc")
+    per_page = int(request.args.get("per_page", "30"))
+
+    try:
+        result = controller.list_milestones(owner, repo, state, sort, direction, per_page)
+        return success_response(result)
+    except APIException as e:
+        return error_response(e.message, e.status_code, e.payload)
+
+
+@bp.route("/repos/<owner>/<repo>/milestones/<int:milestone_number>", methods=["GET"])
+@require_github_token
+def get_milestone(owner: str, repo: str, milestone_number: int) -> Dict[str, Any]:
+    """Get a single milestone by its number."""
+    try:
+        result = controller.get_milestone(owner, repo, milestone_number)
+        return success_response(result)
+    except APIException as e:
+        return error_response(e.message, e.status_code, e.payload)
+
+
+@bp.route("/repos/<owner>/<repo>/milestones", methods=["POST"])
+@require_github_token
+def create_milestone(owner: str, repo: str) -> Dict[str, Any]:
+    """Create a milestone.
+
+    Required body field:
+      - title       : str
+    Optional body fields:
+      - state       : "open" | "closed"  (default: "open")
+      - description : str
+      - due_on      : ISO-8601 datetime string  e.g. "2026-12-31T00:00:00Z"
+    """
+    try:
+        data = request.get_json() or {}
+        result = controller.create_milestone(owner, repo, data)
+        return success_response(result, "Milestone created successfully", 201)
+    except APIException as e:
+        return error_response(e.message, e.status_code, e.payload)
+
+
+@bp.route("/repos/<owner>/<repo>/milestones/<int:milestone_number>", methods=["PATCH"])
+@require_github_token
+def update_milestone(owner: str, repo: str, milestone_number: int) -> Dict[str, Any]:
+    """Update an existing milestone (partial update).
+
+    Updatable body fields:
+      - title       : str
+      - state       : "open" | "closed"
+      - description : str
+      - due_on      : ISO-8601 datetime string or null to clear
+    """
+    try:
+        data = request.get_json() or {}
+        result = controller.update_milestone(owner, repo, milestone_number, data)
+        return success_response(result, "Milestone updated successfully")
+    except APIException as e:
+        return error_response(e.message, e.status_code, e.payload)
+
+
+@bp.route("/repos/<owner>/<repo>/milestones/<int:milestone_number>", methods=["DELETE"])
+@require_github_token
+def delete_milestone(owner: str, repo: str, milestone_number: int) -> Dict[str, Any]:
+    """Delete a milestone."""
+    try:
+        result = controller.delete_milestone(owner, repo, milestone_number)
+        return success_response(result, "Milestone deleted successfully")
+    except APIException as e:
+        return error_response(e.message, e.status_code, e.payload)
